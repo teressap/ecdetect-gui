@@ -4,7 +4,7 @@ from PIL import Image
 from PIL import ImageTk
 import cv2
 import numpy as np
-import tk_example as cnt
+import contour_label as cnt
 import shape_util as sh
 
 path = "M14_004.tif"
@@ -12,9 +12,11 @@ ypad = 50
 thres = 150
 orig_label = 0
 
+to_save = 0
+
 # add label
 def change(arg):
-	global panelA, img, points, imgA, mixed, orig_label
+	global panelA, img, points, imgA, mixed, orig_label, to_save
 	new_points = []
 	for p in sh.points:
 		new_points.append(p.x)
@@ -26,6 +28,7 @@ def change(arg):
 	mixed = Image.fromarray(mixed)
 	#mixed.thumbnail((800,800))
 	mixed = ImageTk.PhotoImage(mixed)
+	to_save = mixed
 	panelA.delete("all")
 	imgA = panelA.create_image((0,0), image = mixed, anchor = "nw")
 	sh.reset()
@@ -66,18 +69,15 @@ def read_im(image, ww, wh, factor = 1):
 def convert_im(image, threshold = 100):
 	global orig_label
 	thre = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-	tmp, gray = cv2.threshold(thre, threshold, 255, cv2.THRESH_BINARY)
+	# blur = cv2.GaussianBlur(thre,(3,3),0)
+	# ret3,gray = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+	gray = cv2.adaptiveThreshold(thre,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,7,0)
 	gray, orig_label= cnt.find_contour(image, gray)
 	gray = cv2.cvtColor(gray, cv2.COLOR_BGR2RGB)
 	gray = Image.fromarray(gray)
 	#gray.thumbnail((800,800))
 	gray = ImageTk.PhotoImage(gray)
 	return gray
-
-#### terminates program ####
-def quit_prog():
-	global root
-	root.destroy()
 
 #### draw polygon ####
 def motion(event):
@@ -93,6 +93,11 @@ def scroll_y(*args):
 	panelA.yview(*args)
 	panelB.yview(*args)
 
+#### terminates program ####
+def quit_prog():
+	global root
+	root.destroy()
+
 def chr_area():
 	change("chr")
 
@@ -106,7 +111,8 @@ def discard():
 	pass
 
 def save():
-	pass
+	
+	quit_prog()
 
 
 root = Tk()

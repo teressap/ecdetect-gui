@@ -31,7 +31,7 @@ def find_contour(image, gray):
 	## eliminate unwanted contours (outmost)
 	for cnt in contours:
 		area = cv2.contourArea(cnt)
-		if 5 < area < 200:
+		if 0 < area < 200:
 			small[idx_small] = cnt
 			idx_small += 1
 		if 200 <= area < 30000:
@@ -45,7 +45,7 @@ def find_contour(image, gray):
 
 	gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 	cv2.drawContours(gray, display, -1, (0,255,0),thickness = -1)
-	cv2.drawContours(gray, small, -1, (0,255,255),thickness = -1)
+	cv2.drawContours(gray, small, -1, (0,0,0),thickness = -1)
 
 	## initialize label_im ##
 	label_im = np.zeros_like(gray)

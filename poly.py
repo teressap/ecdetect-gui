@@ -1,66 +1,54 @@
 from tkinter import *
+from tkinter import filedialog 
+from PIL import Image 
+from PIL import ImageTk
+import cv2
+import numpy as np
+import contour_label as cnt
 
-points = []
-shapes = []
-lines = []
+path = "M14_004.tif"
+thres = 150
 
-def drag(event):
-	global c
-	print("DRAAAAAAAAAG")
+#### read in image and convert that to binary ####
+def read_im(image, ww, wh, factor = 1):
+    # set threshold and create binary image
+    gray = convert_im(image, thres)
 
-def point(event):
-	global points, c, ovals
-	print(event.type)
-	if len(shapes) == 0:
-		oval = c.create_oval(event.x, event.y, event.x+1, event.y+1, fill="black")
-		points.append(event.x)
-		points.append(event.y)
+    # cv to PIL
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(image)
 
-		if len(points) > 2:
-			lines.append(c.create_line(points[-4:]))
-			if points[0] -5 <= event.x <= points[0] +5 and points[1] -5 <= event.y <= points[1] +5:
-				x = points.pop()
-				y = points.pop()
-				c.delete(oval)
-				c.delete(lines.pop())
-				shapes.append(c.create_polygon(points))
-				points = []
-	else:
-		c.move(shapes[0], 10,10)
-	return points
+    # thumbnail
+    image_resize = image.copy()
+    image_resize.thumbnail((ww,wh))
+    image_resize = ImageTk.PhotoImage(image_resize) # to Tk
 
-def cursor(event):
-    global points, c
-    if len(points) > 2:
-        if points[0] -5 <= event.x <= points[0] +5 and points[1] -5 <= event.y <= points[1] +5:
-            c.configure(cursor="circle")
-        else:
-            c.configure(cursor="crosshair")
-    elif len(shapes) != 0:
-    	c.configure(cursor="gumby")
-    else:
-        c.configure(cursor="crosshair")
+    # original image to tk
+    #image.thumbnail((800*factor,800*factor))
+    image = ImageTk.PhotoImage(image)
 
-def delete(event):
-    global c, points, shapes
-    points = []
-    shapes = []
-    c.delete("all")
+    return image, image_resize, gray
 
-if __name__ == "__main__":
-    root = Tk()
+#### returns binarized tk photoImage ####
+def convert_im(image, threshold = 100):
+    global orig_label
+    thre = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+    # ret3,gray = cv2.threshold(thre,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    ret,gray = cv2.threshold(thre,150,255,cv2.THRESH_TRUNC)
+    # ret2,gray = cv2.threshold(thre,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,13,2)
+    gray, orig_label= cnt.find_contour(image, gray)
+    gray = Image.fromarray(gray)
+    gray.thumbnail((800,800))
+    gray = ImageTk.PhotoImage(gray)
+    return gray
 
-    root.title("Simple Graph")
+root = Tk()
+image = cv2.imread(path)
+img, img_small, mixed = read_im(image, 240, 300)
 
-    root.resizable(0,0)
+# put thumbnail in root
+thumb = Label(root, image = mixed)
+thumb.pack()
 
-
-    c = Canvas(root, bg="white", width=300, height= 300)
-    c.configure(cursor="crosshair")
-    c.pack()
-
-    c.bind("<Motion>", cursor)
-    c.bind("<Button-1>", point)
-    c.bind("<Button-2>", delete)
-
-    root.mainloop()
+root.mainloop()
