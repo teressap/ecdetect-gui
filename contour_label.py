@@ -9,8 +9,8 @@ import numpy as np
 
 thresh = 160
 BG = np.array([255,255,255])
-CHR = np.array([128,128,0])
-CELL = np.array([255,0,0])
+CHR = np.array([0,128,128])
+CELL = np.array([0,0,255])
 SEARCH = np.array([0,165,255])
 
 ####
