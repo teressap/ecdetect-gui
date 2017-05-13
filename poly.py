@@ -7,6 +7,7 @@ import numpy as np
 import contour_label as cnt
 
 path = "M14_004.tif"
+# path = "SkMel2_23.tif"
 thres = 150
 
 #### read in image and convert that to binary ####
@@ -33,13 +34,12 @@ def read_im(image, ww, wh, factor = 1):
 def convert_im(image, threshold = 100):
     global orig_label
     thre = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-    # ret3,gray = cv2.threshold(thre,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-    ret,gray = cv2.threshold(thre,150,255,cv2.THRESH_TRUNC)
-    # ret2,gray = cv2.threshold(thre,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-    gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,13,2)
+    median = np.median(thre)
+    ret,gray = cv2.threshold(thre,median-20,255,cv2.THRESH_TRUNC)
+    gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,25,2)
     gray, orig_label= cnt.find_contour(image, gray)
     gray = Image.fromarray(gray)
-    gray.thumbnail((800,800))
+    gray.thumbnail((1024,1024))
     gray = ImageTk.PhotoImage(gray)
     return gray
 
