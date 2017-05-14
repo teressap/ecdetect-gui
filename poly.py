@@ -32,16 +32,19 @@ def read_im(image, ww, wh, factor = 1):
 
 #### returns binarized tk photoImage ####
 def convert_im(image, threshold = 100):
-    global orig_label
-    thre = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-    median = np.median(thre)
-    ret,gray = cv2.threshold(thre,median-20,255,cv2.THRESH_TRUNC)
-    gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,25,2)
-    gray, orig_label= cnt.find_contour(image, gray)
-    gray = Image.fromarray(gray)
-    gray.thumbnail((1024,1024))
-    gray = ImageTk.PhotoImage(gray)
-    return gray
+	global orig_label
+	thre = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+	median = np.median(thre)
+	ret,gray = cv2.threshold(thre,median-20,255,cv2.THRESH_TRUNC)
+	gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,25,2)
+	orig_label= cnt.find_contour(image, gray)
+	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+	gray = Image.fromarray(image)
+	label = Image.fromarray(orig_label)
+	gray = Image.blend(gray, label, 0.2) 
+	gray.thumbnail((1024,1024))
+	gray = ImageTk.PhotoImage(gray)
+	return gray
 
 root = Tk()
 image = cv2.imread(path)

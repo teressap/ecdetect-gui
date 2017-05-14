@@ -6,14 +6,16 @@ from PIL import Image
 from PIL import ImageTk
 import cv2
 import numpy as np
+from scipy import sparse
+from scipy import stats
 
 thresh = 160
 BG = np.array([255,255,0])
-CHR = np.array([0,128,128])
+CHR = [0,128,128]
 CHR_label = (255,0,0)
-CELL = np.array([0,0,255])
+CELL = [0,0,255]
 CELL_label = (0,255,0)
-SEARCH = np.array([0,165,255])
+SEARCH = np.array([255,140,0])
 
 solidity_cutoff = 0.8
 
@@ -35,7 +37,7 @@ EC_CIRCLING_WIDTH = 10
 def find_contour(image, gray):
 	## find contours in image
 	im2, contours, hierarchy = cv2.findContours(gray, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-	im2, border, hierarchy_out = cv2.findContours(gray, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+	im2, border, hierarchy_out = cv2.findContours(gray, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE) # border contour
 
 	cell = np.empty_like(contours)
 	chr = np.empty_like(contours)
@@ -47,8 +49,7 @@ def find_contour(image, gray):
 
 	idx = 0
 	idx_ch = 0
-	idx_small = 0
-	idx_ig = 0
+
 	for cnt in contours:
 		area = cv2.contourArea(cnt)
 		hull = cv2.convexHull(cnt)
@@ -79,68 +80,74 @@ def find_contour(image, gray):
 		if area < MAX_SIZE:
 			border1[idx_b] = hull
 			idx_b+=1
-
-	cv2.drawContours(gray, chr, -1, CHR_label,thickness = -1)
-	cv2.drawContours(gray, cell, -1, CELL_label,thickness = -1)
-	# cv2.drawContours(gray, contours, -1, (0,255,0),thickness = 1)
-	cv2.drawContours(gray, border1, -1, CELL_label, thickness = -1)
-
 	label_im = np.zeros_like(gray)
-	for i in range(len(gray)):
-		for j in range(len(gray[i])):
-			if (gray[i,j] == np.array(CELL_label)).all():
-				label_im[i,j] = CELL
-			elif (gray[i,j] == np.array(CHR_label)).all():
-				label_im[i,j] = CHR
-			elif (gray[i,j] == np.array([0,255,255])).all():
-			 	label_im[i,j] = SEARCH
-			else:
-				label_im[i,j] = np.array([0,0,0])
 
-	mixed = cv2.addWeighted(image, 1, label_im, 0.6, 0.0)  ## -> return value
+	label_im = search_region(label_im, chr)
 
-	return mixed, 0 
-
-	# print(len(contours))
-
-	# ## exclude the outmost contours ##
-	# display = np.empty_like(contours)
-	# small = np.empty_like(contours)
-	# ignore = np.empty_like(contours)
-	# cnt_area = np.arange(0)
-	# cnt_centroid = np.arange(0)
-	# idx = 0
-	# idx_small = 0
-	# idx_ig = 0
-
-	# ## eliminate unwanted contours (outmost)
-	# for cnt in contours:
-	# 	area = cv2.contourArea(cnt)
-	# 	if 10 < area < 100:
-	# 		small[idx_small] = cnt
-	# 		idx_small += 1
-	# 	if 100 <= area < 30000:
-	# 		M = cv2.moments(cnt)
-	# 		cx = int(M['m10']/M['m00'])
-	# 		cy = int(M['m01']/M['m00'])
-	# 		display[idx] = cnt
-	# 		cnt_area = np.append(cnt_area, area)
-	# 		cnt_centroid = np.append(cnt_centroid, (cx,cy))
-	# 		idx += 1
-	# 	if area <= 10:
-	# 		ignore[idx_ig] = cnt
-	# 		idx_ig += 1
-
-	# gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-	# cv2.drawContours(gray, display, -1, (0,255,0),thickness = -1)
-	# cv2.drawContours(gray, small, -1, (255,0,0),thickness = -1)
-	# cv2.drawContours(gray, ignore, -1, (255,255,255), thickness = -1)
-
-	# # initialize label_im ##
+	cv2.drawContours(label_im, chr, -1, CHR,thickness = -1)
+	kernel = np.ones((5,5),np.uint8)
+	label_im = cv2.erode(label_im,kernel,iterations = 1)
+	cv2.drawContours(label_im, cell, -1, CELL,thickness = -1)
+	cv2.drawContours(label_im, border1, -1, CELL, thickness = -1)
+	# mixed = image + label_im * 0.5
+	# mixed = cv2.addWeighted(image, 1, label_im, 1, 1)  ## -> return value
 
 
-	# ## fuse two images together
-	# return mixed, label_im
+	return label_im
+
+# create a convex hull around close connected chromosomes
+def search_region(label_im, chr):
+
+	D_near = 150
+
+	search_label = np.empty_like(label_im)
+	chr_center = []
+	dist = []
+
+	# get centroid of chrs
+	for cnt in chr:
+		M = cv2.moments(cnt)
+		if M['m00'] == 0:
+			continue
+		cx = int(M['m10']/M['m00'])
+		cy = int(M['m01']/M['m00'])
+		chr_center.append((cx,cy))
+
+	x = []
+	y = []
+
+	# compute distence
+	for i in range(len(chr_center)):
+		cx = chr_center[i][0]
+		cy = chr_center[i][1]
+		for j in range(i+1, len(chr_center)):
+			dx = chr_center[j][0]
+			dy = chr_center[j][1]
+			d = ((cx-dx)**2+(cy-dy)**2)**0.5
+			if d < D_near:
+				x.append(i)
+				y.append(j)
+				dist.append(d)
+
+	# find weakly connected components
+	comp = sparse.csr_matrix((dist, (x,y)),shape=(len(chr_center),len(chr_center)))
+	[S,C] = sparse.csgraph.connected_components(comp)
+
+	# find the largest cluster
+	condition = np.argwhere(C == stats.mode(C)[0][0]).flatten().tolist()
+
+	# extract positions and draw contour
+	extracted_cluster = [cv2.convexHull(np.array([list(chr_center[i]) for i in condition]))]
+	cv2.drawContours(label_im, extracted_cluster, -1, SEARCH.tolist(), thickness=-1)
+
+	kernel = np.ones((100,100),np.uint8)
+	label_im = cv2.dilate(label_im,kernel,iterations = 1)
+
+	# cv2.imshow("aaa",label_im)
+	# cv2.waitKey(5000)
+	# cv2.destroyAllWindows()
+
+	return label_im
 
 ####
 # Takes a label_im 2-d array and modify points specified through parameter
@@ -153,7 +160,7 @@ def add_label(label_im, points, arg):
 	tmp = label_im.copy()	
 	points = [[points[i], points[i+1]] for i in range(0,len(points),2)]
 	points = np.array(points, np.int32)
-	cv2.fillPoly(tmp, [points], tuple(arg.tolist()))
+	cv2.fillPoly(tmp, [points], tuple(arg))
 	return tmp
 
 def main():

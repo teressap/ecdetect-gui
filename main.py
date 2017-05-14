@@ -12,6 +12,8 @@ ypad = 50
 thres = 150
 orig_label = 0
 
+window_size = 1024
+
 to_save = 0
 
 # add label
@@ -23,10 +25,13 @@ def change(arg):
 		new_points.append(p.y)
 	label_im = cnt.add_label(orig_label, new_points, arg)
 	orig_label = label_im
-	mixed = cv2.addWeighted(image, 1, label_im, 0.5, 0.0)
-	mixed = cv2.cvtColor(mixed, cv2.COLOR_BGR2RGB)
-	mixed = Image.fromarray(mixed)
-	#mixed.thumbnail((800,800))
+	label = Image.fromarray(orig_label)
+	label.thumbnail((window_size,window_size))
+	# mixed = cv2.addWeighted(image, 1, label_im, 0.5, 0.0)
+	gray = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+	gray = Image.fromarray(gray)
+	gray.thumbnail((window_size,window_size))
+	mixed = Image.blend(gray, label, 0.3) 
 	mixed = ImageTk.PhotoImage(mixed)
 	to_save = mixed
 	panelA.delete("all")
@@ -47,36 +52,40 @@ def delete():
 
 #### read in image and convert that to binary ####
 def read_im(image, ww, wh, factor = 1):
-	# set threshold and create binary image
-	gray = convert_im(image, thres)
+    # set threshold and create binary image
+    gray = convert_im(image, thres)
 
-	# cv to PIL
-	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-	image = Image.fromarray(image)
+    # cv to PIL
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(image)
 
-	# thumbnail
-	image_resize = image.copy()
-	image_resize.thumbnail((ww,wh))
-	image_resize = ImageTk.PhotoImage(image_resize) # to Tk
+    # thumbnail
+    image_resize = image.copy()
+    image_resize.thumbnail((ww,wh))
+    image_resize = ImageTk.PhotoImage(image_resize) # to Tk
 
-	# original image to tk
-	#image.thumbnail((800*factor,800*factor))
-	image = ImageTk.PhotoImage(image)
+    # original image to tk
+    image.thumbnail((window_size,window_size))
+    image = ImageTk.PhotoImage(image)
 
-	return image, image_resize, gray
+    return image, image_resize, gray
 
 #### returns binarized tk photoImage ####
 def convert_im(image, threshold = 100):
 	global orig_label
 	thre = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-	# blur = cv2.GaussianBlur(thre,(3,3),0)
-	# ret3,gray = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-	ret,gray = cv2.threshold(thre,150,255,cv2.THRESH_TRUNC)
-	gray = cv2.adaptiveThreshold(thre,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,7,0)
-	gray, orig_label= cnt.find_contour(image, gray)
-	gray = cv2.cvtColor(gray, cv2.COLOR_BGR2RGB)
-	gray = Image.fromarray(gray)
-	#gray.thumbnail((800,800))
+	median = np.median(thre)
+	ret,gray = cv2.threshold(thre,median-20,255,cv2.THRESH_TRUNC)
+	gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,25,2)
+	orig_label= cnt.find_contour(image, gray)
+	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+	gray = Image.fromarray(image)
+	gray.thumbnail((window_size,window_size))
+	label = Image.fromarray(orig_label)
+	label.thumbnail((window_size,window_size))
+	orig_label = np.array(label)
+	gray = Image.blend(gray, label, 0.3) 
+	gray.thumbnail((window_size,window_size))
 	gray = ImageTk.PhotoImage(gray)
 	return gray
 
