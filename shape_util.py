@@ -8,7 +8,7 @@ orig_y = 0
 
 # colors
 line_c = "SpringGreen3"
-dot_c = "purple"
+dot_c = "SlateBlue1"
 
 def reset():
 	global points, lines, shape, orig_x, orig_y
@@ -117,7 +117,6 @@ def draw(event, d = True):
 			event.widget.unbind("<Button-1>")
 			shape = 1
 			shape = poly(points, event.widget)
-			print(shape)
 			return
 	# otherwise
 	points.append(point(event.widget.canvasx(event.x), event.widget.canvasy(event.y), event.widget))

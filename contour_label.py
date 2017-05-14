@@ -10,12 +10,9 @@ from scipy import sparse
 from scipy import stats
 
 thresh = 160
-BG = np.array([255,255,0])
 CHR = [0,128,128]
-CHR_label = (255,0,0)
 CELL = [0,0,255]
-CELL_label = (0,255,0)
-SEARCH = np.array([255,140,0])
+SEARCH = [255,140,0]
 
 solidity_cutoff = 0.8
 
@@ -30,6 +27,9 @@ CHR_size_thresh = 4000
 
 EC_CIRCLING_SIZE = 20
 EC_CIRCLING_WIDTH = 10
+
+search = 0
+
 
 ####
 # takes binarized image and return the labeled image
@@ -85,13 +85,12 @@ def find_contour(image, gray):
 	label_im = search_region(label_im, chr)
 
 	cv2.drawContours(label_im, chr, -1, CHR,thickness = -1)
-	kernel = np.ones((5,5),np.uint8)
-	label_im = cv2.erode(label_im,kernel,iterations = 1)
 	cv2.drawContours(label_im, cell, -1, CELL,thickness = -1)
 	cv2.drawContours(label_im, border1, -1, CELL, thickness = -1)
+	kernel = np.ones((5,5),np.uint8)
+	label_im = cv2.erode(label_im,kernel,iterations = 1)
 	# mixed = image + label_im * 0.5
 	# mixed = cv2.addWeighted(image, 1, label_im, 1, 1)  ## -> return value
-
 
 	return label_im
 
@@ -138,16 +137,32 @@ def search_region(label_im, chr):
 
 	# extract positions and draw contour
 	extracted_cluster = [cv2.convexHull(np.array([list(chr_center[i]) for i in condition]))]
-	cv2.drawContours(label_im, extracted_cluster, -1, SEARCH.tolist(), thickness=-1)
+	cv2.drawContours(label_im, extracted_cluster, -1, SEARCH, thickness=-1)
 
 	kernel = np.ones((100,100),np.uint8)
 	label_im = cv2.dilate(label_im,kernel,iterations = 1)
 
-	# cv2.imshow("aaa",label_im)
-	# cv2.waitKey(5000)
-	# cv2.destroyAllWindows()
-
 	return label_im
+
+def detect_EC(image, thresh, label_im):
+	im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+	show = []
+	for cnt in contours:
+		area = cv2.contourArea(cnt)
+		hull = cv2.convexHull(cnt)
+		hull_area = cv2.contourArea(hull)
+		M = cv2.moments(cnt)
+		if M['m00'] == 0:
+			continue
+		cx = int(M['m10']/M['m00'])
+		cy = int(M['m01']/M['m00'])
+		if ((label_im[cy][cx] == np.array(SEARCH)).all()) and 3 < area < 100:
+			show.append((cx,cy))
+
+	for center in show:
+		cv2.circle(image, center, 8, [255,0,0], thickness = 2)
+
+	return image, len(show)
 
 ####
 # Takes a label_im 2-d array and modify points specified through parameter
