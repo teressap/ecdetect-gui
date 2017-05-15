@@ -156,7 +156,7 @@ def detect_EC(image, thresh, label_im):
 			continue
 		cx = int(M['m10']/M['m00'])
 		cy = int(M['m01']/M['m00'])
-		if ((label_im[cy][cx] == np.array(SEARCH)).all()) and 3 < area < 100:
+		if ((label_im[cy][cx] == np.array(SEARCH)).all()) and EC_min_size < area < 100:
 			show.append((cx,cy))
 
 	for center in show:

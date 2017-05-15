@@ -7,7 +7,8 @@ import numpy as np
 import contour_label as cnt
 import shape_util as sh
 
-path = "M14_004.tif"
+# path = "M14_004.tif"
+path = "PC3_Ctrl_003.tif"
 ypad = 50
 thres = 0
 
@@ -26,11 +27,13 @@ to_save = 0
 # number of ECs
 EC_count = 0
 
+adj_image = 0
+
 ###
 # Change labels
 ###
 def change(arg):
-	global panelA, img, points, imgA, mixed, curr_label, to_save, circles, before_circles
+	global panelA, points, imgA, mixed, curr_label, to_save, circles, before_circles, adj_image
 	# compose new points
 	new_points = []
 	for p in sh.points:
@@ -54,7 +57,7 @@ def change(arg):
 	# blend again
 	label = Image.fromarray(curr_label)
 	label.thumbnail((window_size,window_size))
-	gray = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+	gray = cv2.cvtColor(adj_image, cv2.COLOR_GRAY2RGB)
 	gray = Image.fromarray(gray)
 	gray.thumbnail((window_size,window_size))
 	mixed = Image.blend(gray, label, 0.3) 
@@ -80,11 +83,20 @@ def delete():
 
 #### read in image and convert that to binary ####
 def read_im(image, ww, wh, factor = 1):
+    global adj_image
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    bw_ratio = np.count_nonzero(image[image < np.mean(image)])/(image.shape[0]*image.shape[1])
+    if bw_ratio > 0.5:
+        image = (255 - image)
+    # clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(8,8))
+    # image = clahe.apply(image)
+    adj_image = np.copy(image)
+
     # set threshold and create binary image
     gray = convert_im(image, thres)
 
     # cv to PIL
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image = Image.fromarray(image)
 
     # thumbnail
@@ -100,34 +112,34 @@ def read_im(image, ww, wh, factor = 1):
 
 #### returns binarized tk photoImage ####
 def convert_im(image, threshold = 100):
-	global curr_label, origin, thresh, before_circles
-	thre = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-	median = np.median(thre)
-	ret,gray = cv2.threshold(thre,median-20,255,cv2.THRESH_TRUNC)
-	gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,25,2)
-	# update threshold global variable
-	thresh = np.copy(gray)
-	thresh = Image.fromarray(thresh)
-	thresh.thumbnail((window_size,window_size))
-	thresh = np.array(thresh)
+    global curr_label, origin, thresh, before_circles
+    median = np.median(image)
+    ret,gray = cv2.threshold(image,median-20,255,cv2.THRESH_TRUNC)
+    gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,25,2)
 
-	# label image for cell and chr and search region
-	curr_label= cnt.find_contour(image, gray)
+    # update threshold global variable
+    thresh = np.copy(gray)
+    thresh = Image.fromarray(thresh)
+    thresh.thumbnail((window_size,window_size))
+    thresh = np.array(thresh)
 
-	# shrink images
-	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-	gray = Image.fromarray(image)
-	gray.thumbnail((window_size,window_size))
-	label = Image.fromarray(curr_label)
-	label.thumbnail((window_size,window_size))
-	curr_label = np.array(label)
-	origin = np.copy(curr_label)
+    # label image for cell and chr and search region
+    curr_label= cnt.find_contour(image, gray)
 
-	# blend
-	gray = Image.blend(gray, label, 0.3) 
-	before_circles = np.copy(gray)
-	gray = ImageTk.PhotoImage(gray)
-	return gray
+    # shrink images
+    image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    gray = Image.fromarray(image)
+    gray.thumbnail((window_size,window_size))
+    label = Image.fromarray(curr_label)
+    label.thumbnail((window_size,window_size))
+    curr_label = np.array(label)
+    origin = np.copy(curr_label)
+
+    # blend
+    gray = Image.blend(gray, label, 0.3) 
+    before_circles = np.copy(gray)
+    gray = ImageTk.PhotoImage(gray)
+    return gray
 
 #### scroll at the same time ####
 def scroll_x(*args):
@@ -167,7 +179,7 @@ def detect_EC():
 
 	tmp = np.copy(before_circles)
 	circles,EC_count = cnt.detect_EC(tmp, thresh, curr_label)
-	print(EC_count)
+	print("Number of ECs: " + str(EC_count))
 
 	circles = Image.fromarray(circles)
 	circles = ImageTk.PhotoImage(circles)
