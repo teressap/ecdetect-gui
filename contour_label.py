@@ -1,8 +1,8 @@
 ### This module will draw contour and return the labeled image
 
 from tkinter import *
-from tkinter import filedialog 
-from PIL import Image 
+from tkinter import filedialog
+from PIL import Image
 from PIL import ImageTk
 import cv2
 import numpy as np
@@ -144,9 +144,10 @@ def search_region(label_im, chr):
 
 	return label_im
 
-def detect_EC(image, thresh, label_im):
+def detect_EC(image, thresh, label_im, ori_image):
 	im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 	show = []
+	ori_image = cv2.cvtColor(ori_image, cv2.COLOR_GRAY2RGB)
 	for cnt in contours:
 		area = cv2.contourArea(cnt)
 		hull = cv2.convexHull(cnt)
@@ -160,9 +161,10 @@ def detect_EC(image, thresh, label_im):
 			show.append((cx,cy))
 
 	for center in show:
-		cv2.circle(image, center, 8, [255,0,0], thickness = 2)
+		cv2.circle(image, center, 8, [255,0,0], thickness=2)
+		cv2.circle(ori_image, center, 8, [255,0,0], thickness=2)
 
-	return image, len(show)
+	return image, len(show), ori_image
 
 ####
 # Takes a label_im 2-d array and modify points specified through parameter
@@ -172,7 +174,7 @@ def add_label(label_im, points, arg):
 		arg = CHR
 	if arg == "cell":
 		arg = CELL
-	tmp = label_im.copy()	
+	tmp = label_im.copy()
 	points = [[points[i], points[i+1]] for i in range(0,len(points),2)]
 	points = np.array(points, np.int32)
 	cv2.fillPoly(tmp, [points], tuple(arg))

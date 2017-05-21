@@ -1,14 +1,14 @@
 from tkinter import *
-from tkinter import filedialog 
-from PIL import Image 
+from tkinter import filedialog
+from PIL import Image
 from PIL import ImageTk
 import cv2
 import numpy as np
 import contour_label as cnt
 import shape_util as sh
 
-# path = "M14_004.tif"
-path = "PC3_Ctrl_003.tif"
+path = "M14_004.tif"
+# path = "PC3_Ctrl_003.tif"
 ypad = 50
 thres = 0
 
@@ -19,9 +19,13 @@ origin = 0
 # size of display window
 window_size = 960
 # image with EC circles
-circles = 0
-# image before EC circles
+circles_left = 0
+circles_right = 0
+
+# image before EC circles with labels in BGR
 before_circles = 0
+ori_right = 0
+
 # lable array to save
 to_save = 0
 # number of ECs
@@ -33,43 +37,50 @@ adj_image = 0
 # Change labels
 ###
 def change(arg):
-	global panelA, points, imgA, mixed, curr_label, to_save, circles, before_circles, adj_image
-	# compose new points
-	new_points = []
-	for p in sh.points:
-		new_points.append(p.x)
-		new_points.append(p.y)
-	if arg == "reset":
-		points = [[new_points[i], new_points[i+1]] for i in range(0,len(new_points),2)]
-		points = np.array(points, np.int32)
-		# initialize blank canvas
-		blank = np.empty_like(curr_label)
-		cv2.fillPoly(blank, [points], (1,1,1))
-		# reset polygon region
-		curr_label[blank == (1,1,1)] = origin[blank==(1,1,1)]
-	else:
-		# add to original labels
-		label_im = cnt.add_label(curr_label, new_points, arg)
-		curr_label = label_im
+    global panelA, points, imgA, imgB, panelB, mixed, curr_label, to_save, before_circles, ori_right
+    # compose new points
+    new_points = []
+    for p in sh.points:
+        new_points.append(p.x)
+        new_points.append(p.y)
+    if arg == "resetpoly":
+        points = [[new_points[i], new_points[i+1]] for i in range(0,len(new_points),2)]
+        points = np.array(points, np.int32)
+        # initialize blank canvas
+        blank = np.empty_like(curr_label)
+        cv2.fillPoly(blank, [points], (1,1,1))
+        # reset polygon region
+        curr_label[blank == (1,1,1)] = origin[blank==(1,1,1)]
+    elif arg == "resetall":
+        curr_label = origin
+        ori_right = Image.fromarray(adj_image)
+        ori_right.thumbnail((window_size,window_size))
+        ori_right = ImageTk.PhotoImage(ori_right)
+        panelB.delete("all")
+        imgB = panelB.create_image((0,0), image = ori_right, anchor = "nw")
+    else:
+        # add to original labels
+        label_im = cnt.add_label(curr_label, new_points, arg)
+        curr_label = label_im
 
-	to_save = curr_label
+    to_save = curr_label
 
-	# blend again
-	label = Image.fromarray(curr_label)
-	label.thumbnail((window_size,window_size))
-	gray = cv2.cvtColor(adj_image, cv2.COLOR_GRAY2RGB)
-	gray = Image.fromarray(gray)
-	gray.thumbnail((window_size,window_size))
-	mixed = Image.blend(gray, label, 0.3) 
-	before_circles = np.copy(mixed)
-	mixed = ImageTk.PhotoImage(mixed)
+    # blend again
+    label = Image.fromarray(curr_label)
+    label.thumbnail((window_size,window_size))
+    gray = cv2.cvtColor(adj_image, cv2.COLOR_GRAY2RGB)
+    gray = Image.fromarray(gray)
+    gray.thumbnail((window_size,window_size))
+    mixed = Image.blend(gray, label, 0.3)
+    before_circles = np.copy(mixed)
+    mixed = ImageTk.PhotoImage(mixed)
 
-	# delete original img
-	panelA.delete("all")
-	imgA = panelA.create_image((0,0), image = mixed, anchor = "nw")
-	sh.reset()
-	panelA.bind("<Button-1>", sh.draw)
-	return imgA
+    # delete original img
+    panelA.delete("all")
+    imgA = panelA.create_image((0,0), image = mixed, anchor = "nw")
+    sh.reset()
+    panelA.bind("<Button-1>", sh.draw)
+    return imgA, imgB
 
 def delete():
     global panelA,imgA
@@ -136,74 +147,96 @@ def convert_im(image, threshold = 100):
     origin = np.copy(curr_label)
 
     # blend
-    gray = Image.blend(gray, label, 0.3) 
+    gray = Image.blend(gray, label, 0.3)
     before_circles = np.copy(gray)
     gray = ImageTk.PhotoImage(gray)
     return gray
 
 #### scroll at the same time ####
 def scroll_x(*args):
-	panelA.xview(*args)
-	panelB.xview(*args)
+    panelA.xview(*args)
+    panelB.xview(*args)
 
 #### scroll at the same time ####
 def scroll_y(*args):
-	panelA.yview(*args)
-	panelB.yview(*args)
+    panelA.yview(*args)
+    panelB.yview(*args)
 
 #### terminates program ####
 def quit_prog():
-	global root
-	root.destroy()
+    global root
+    root.destroy()
 
 #### Mark selected as chromosomal region ####
 def chr_area():
-	change("chr")
+    change("chr")
 
 #### Mark selected as cell region ####
 def mask():
-	change("cell")
+    change("cell")
 
 #### Reset selected region ####
 def reset_poly():
-	change("reset")
+    change("resetpoly")
+
+def reset_all():
+    change("resetall")
 
 def discard():
-	quit_prog()
+    quit_prog()
 
 def save():
-	quit_prog()
+    quit_prog()
 
 def detect_EC():
-	global thresh, panelA, imgA, circles, before_circles, EC_count
+    global thresh, panelA, imgA, imgB, circles_left, before_circles, EC_count, panelB, circles_right
 
-	tmp = np.copy(before_circles)
-	circles,EC_count = cnt.detect_EC(tmp, thresh, curr_label)
-	print("Number of ECs: " + str(EC_count))
+    tmp = np.copy(before_circles)
 
-	circles = Image.fromarray(circles)
-	circles = ImageTk.PhotoImage(circles)
+    # adjust adj_image size
+    ori_image = Image.fromarray(adj_image)
+    ori_image.thumbnail((window_size,window_size))
+    ori_image = np.array(ori_image)
 
-	# delete original img
-	panelA.delete("all")
-	imgA = panelA.create_image((0,0), image = circles, anchor = "nw")
-	sh.reset()
-	panelA.bind("<Button-1>", sh.draw)
-	return imgA
+    # detect EC
+    circles_left, EC_count, circles_right= cnt.detect_EC(tmp, thresh, curr_label, ori_image)
+    print("Number of ECs: " + str(EC_count))
+
+    # convert circles
+    circles_left = Image.fromarray(circles_left)
+    circles_left = ImageTk.PhotoImage(circles_left)
+    circles_right = Image.fromarray(circles_right)
+    circles_right = ImageTk.PhotoImage(circles_right)
+
+    # reset panelA
+    panelA.delete("all")
+    imgA = panelA.create_image((0,0), image = circles_left, anchor = "nw")
+    sh.reset()
+    panelA.bind("<Button-1>", sh.draw)
+    # reset panelB
+    panelB.delete("all")
+    imgB = panelB.create_image((0,0), image = circles_right, anchor = "nw")
+    return imgA, imgB
 
 
 def clear_EC():
-	global panelA, imgA, before_circles, circles
-	print(before_circles == circles)
-	circles = Image.fromarray(before_circles)
-	circles = ImageTk.PhotoImage(circles)
+    global panelA, imgA, imgB, panelB, circles_right, circles_left
 
-	# delete original img
-	panelA.delete("all")
-	imgA = panelA.create_image((0,0), image = circles, anchor = "nw")
-	sh.reset()
-	panelA.bind("<Button-1>", sh.draw)
-	return imgA
+    # assign back the origin images
+    circles_left= Image.fromarray(before_circles)
+    circles_left = ImageTk.PhotoImage(circles_left)
+    circles_right = Image.fromarray(adj_image)
+    circles_right.thumbnail((window_size,window_size))
+    circles_right = ImageTk.PhotoImage(circles_right)
+
+    # delete original img
+    panelA.delete("all")
+    imgA = panelA.create_image((0,0), image = circles_left, anchor = "nw")
+    sh.reset()
+    panelA.bind("<Button-1>", sh.draw)
+    panelB.delete("all")
+    imgB = panelB.create_image((0,0), image = circles_right, anchor = "nw")
+    return imgA
 
 
 root = Tk()
@@ -251,9 +284,9 @@ scy_B.grid(row=0, column=9, sticky=N+S)
 
 # put the other two side by side on two scrollable canvases
 panelA = Canvas(frameA, width=w//2-20, height=h-70,
-				scrollregion=(0,0,img.width(),img.height()),
-				xscrollcommand=scx_A.set,
-				yscrollcommand=scy_A.set)
+                scrollregion=(0,0,img.width(),img.height()),
+                xscrollcommand=scx_A.set,
+                yscrollcommand=scy_A.set)
 panelA.grid(row=0, column=0, columnspan=4)
 imgA = panelA.create_image((0,0), image = mixed, anchor = "nw")
 
@@ -261,9 +294,9 @@ imgA = panelA.create_image((0,0), image = mixed, anchor = "nw")
 panelA.bind("<Button-1>", sh.draw)
 
 panelB = Canvas(frameA, width=w//2-20, height=h-70,
-				scrollregion=(0,0,img.width(),img.height()),
-				xscrollcommand=scx_B.set,
-				yscrollcommand=scy_B.set)
+                scrollregion=(0,0,img.width(),img.height()),
+                xscrollcommand=scx_B.set,
+                yscrollcommand=scy_B.set)
 panelB.grid(row=0, column=5, columnspan=4)
 imgB = panelB.create_image((0,0), image = img, anchor = "nw")
 
@@ -283,7 +316,7 @@ quit_button4.grid(row = 5, column=3, padx=20, pady=10)
 quit_button5 = Button(frameB, text = "Reset Polygon", command = reset_poly)
 quit_button5.grid(row = 5, column=4, padx=20, pady=10)
 
-quit_button7 = Button(frameB, text = "Reset All", command = delete)
+quit_button7 = Button(frameB, text = "Reset All", command = reset_all)
 quit_button7.grid(row = 5, column=5, padx=20, pady=10)
 
 quit_button8 = Button(frameB, text = "Detect ECs", command = detect_EC)
@@ -299,6 +332,3 @@ quit_button11 = Button(frameB, text = "Continue", command = save)
 quit_button11.grid(row = 5, column=9, padx=20, pady=10)
 
 root.mainloop()
-
-
-
