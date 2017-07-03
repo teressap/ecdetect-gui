@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import contour_label as cnt
 import shape_util as sh
+from bradley import bradley
 
 path = "M14_004.tif"
 # path = "PC3_Ctrl_003.tif"
@@ -124,9 +125,11 @@ def read_im(image, ww, wh, factor = 1):
 #### returns binarized tk photoImage ####
 def convert_im(image, threshold = 100):
     global curr_label, origin, thresh, before_circles
-    median = np.median(image)
-    ret,gray = cv2.threshold(image,median-20,255,cv2.THRESH_TRUNC)
-    gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,25,2)
+    # median = np.median(image)
+    # ret,gray = cv2.threshold(image,median-20,255,cv2.THRESH_TRUNC)
+    # gray = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,25,2)
+
+    gray = bradley(image, 150,150,10)
 
     # update threshold global variable
     thresh = np.copy(gray)
@@ -149,6 +152,7 @@ def convert_im(image, threshold = 100):
     # blend
     gray = Image.blend(gray, label, 0.3)
     before_circles = np.copy(gray)
+
     gray = ImageTk.PhotoImage(gray)
     return gray
 
