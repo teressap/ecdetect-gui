@@ -49,5 +49,5 @@ if __name__ == "__main__":
 	thres = bradley(image,m=150,n=150)
 
 	cv2.imshow('image',thres)
-	cv2.waitKey(5000)
+	cv2.waitKey(0)
 	cv2.destroyAllWindows()

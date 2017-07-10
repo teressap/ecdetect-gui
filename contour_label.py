@@ -34,14 +34,13 @@ search = 0
 ####
 # takes binarized image and return the labeled image
 ####
-def find_contour(image, gray):
+def find_contour(gray):
 	## find contours in image
 	im2, contours, hierarchy = cv2.findContours(gray, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 	im2, border, hierarchy_out = cv2.findContours(gray, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE) # border contour
 
 	cell = np.empty_like(contours)
 	chr = np.empty_like(contours)
-	small = np.empty_like(contours)
 	ignore = np.empty_like(contours)
 	search = []
 
@@ -50,6 +49,7 @@ def find_contour(image, gray):
 	idx = 0
 	idx_ch = 0
 
+
 	for cnt in contours:
 		area = cv2.contourArea(cnt)
 		hull = cv2.convexHull(cnt)
@@ -57,7 +57,6 @@ def find_contour(image, gray):
 		solidity = 0
 		if hull_area != 0:
 			solidity = float(area)/hull_area
-
 		# solid and large are cells
 		if solidity > solidity_cutoff and CHR_size_thresh < area < MAX_SIZE:
 			cell[idx] = hull
@@ -71,14 +70,14 @@ def find_contour(image, gray):
 			search.append(center)
 
 	# find border components and add them to cells
-	border1 = np.empty_like(border)
+	border_cell = np.empty_like(border)
 	idx_b = 0
 	for b in border:
 		area = cv2.contourArea(b)
 		hull = cv2.convexHull(b)
 		hull_area = cv2.contourArea(hull)
-		if area < MAX_SIZE:
-			border1[idx_b] = hull
+		if area < MAX_SIZE: # exclude the outmost contour
+			border_cell[idx_b] = hull
 			idx_b+=1
 	label_im = np.zeros_like(gray)
 
@@ -86,11 +85,9 @@ def find_contour(image, gray):
 
 	cv2.drawContours(label_im, chr, -1, CHR,thickness = -1)
 	cv2.drawContours(label_im, cell, -1, CELL,thickness = -1)
-	cv2.drawContours(label_im, border1, -1, CELL, thickness = -1)
+	cv2.drawContours(label_im, border_cell, -1, CELL, thickness = -1)
 	kernel = np.ones((5,5),np.uint8)
 	label_im = cv2.erode(label_im,kernel,iterations = 1)
-	# mixed = image + label_im * 0.5
-	# mixed = cv2.addWeighted(image, 1, label_im, 1, 1)  ## -> return value
 
 	return label_im
 
