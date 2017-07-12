@@ -4,7 +4,7 @@ from PIL import Image
 from PIL import ImageTk
 import cv2
 import numpy as np
-import contour_label as cnt
+from contour_label import ContourLabel
 import shape_util as sh
 from bradley import bradley
 
@@ -29,6 +29,75 @@ thresh_img = 0
 
 # Detected ECs
 ec_count = 0
+
+# GUI variables
+panelA = 0
+panelB = 0
+imgA = 0
+imgB = 0
+
+#--------------------------#
+#       CHANGE LABELS      #
+#--------------------------#
+def change(arg):
+    global panelA, points, img, imgA_handler, imgB_handler, panelB, blended, curr_label, to_save, before_circles, ori_right
+    
+    # compose new points
+    new_points = []
+    for p in sh.points:
+        new_points.append(p.x)
+        new_points.append(p.y)
+
+    if arg == "resetpoly":
+
+        # convert point into [x,y] pair lists
+        points = [[new_points[i], new_points[i+1]] for i in range(0,len(new_points),2)]
+        points = np.array(points, np.int32)
+
+        # initialize blank canvas
+        blank = np.empty_like(curr_label.label_im)
+        cv2.fillPoly(blank, [points], (1,1,1))
+
+        # reset polygon region
+        curr_label.new_label[blank == (1,1,1)] = curr_label.label_im[blank==(1,1,1)]
+
+        # recompute search region
+        curr_label.recompute()
+
+        label = curr_label.new_label
+
+    elif arg == "resetall":
+
+        # get original label
+        label = curr_label.label_im
+
+        # delete circles on panelB
+        panelB.delete("all")
+
+        # re-pack image on panelB
+        img = ImageTk.PhotoImage(orig_image)
+        imgB_handler = panelB.create_image((0,0), image = img, anchor = "nw")
+
+    else:
+        # add to original labels
+        label = curr_label.add_label(new_points,arg)
+
+    # blend again
+    label = Image.fromarray(label)
+    # label.thumbnail((window_size,window_size))
+    # gray = cv2.cvtColor(adj_image, cv2.COLOR_GRAY2RGB)
+    # gray = Image.fromarray(gray)
+    # gray.thumbnail((window_size,window_size))
+    blended = Image.blend(orig_image, label, 0.3)
+    # before_circles = np.copy(mixed)
+    blended = ImageTk.PhotoImage(blended)
+
+    # delete original img
+    panelA.delete("all")
+    imgA_handler = panelA.create_image((0,0), image = blended, anchor = "nw")
+    sh.reset()
+    panelA.bind("<Button-1>", sh.draw)
+    return imgA_handler, imgB_handler
 
 #--------------------------#
 #   IMAGE PREPROCESSING    #
@@ -75,8 +144,8 @@ def convert_im(image, threshold = 100):
     thresh_img = np.array(thresh_img)
 
     # label image for cell and chr and search region
-    curr_label = cnt.find_contour(thresh_img)
-    label = Image.fromarray(curr_label)
+    curr_label = ContourLabel(thresh_img)
+    label = Image.fromarray(curr_label.label_im)
 
     # shrink images
     orig_image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
@@ -95,8 +164,6 @@ def convert_im(image, threshold = 100):
     blended = ImageTk.PhotoImage(blended)
     return blended
 
-def change(a):
-    pass
 
 def detect_EC(a):
     pass
@@ -128,7 +195,7 @@ def chr_area():
 
 # Mark selected as cell region #
 def mask():
-    change("cell")
+    change("nucleus")
 
 # Reset selected region #
 def reset_poly():
