@@ -18,6 +18,7 @@ def reset():
 	orig_x=0
 	orig_y=0
 
+
 class point():
 	global points, shape
 	line1 = 0	# start

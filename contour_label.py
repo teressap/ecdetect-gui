@@ -21,9 +21,9 @@ MAX_SIZE = 400000
 EC_size_thresh_RELAX = 75
 EC_min_size = 3
 
-MED_COMP_SIZE = 200
+MED_COMP_SIZE = 100
 CHR_NEAR_DILATION = 15
-CHR_size_thresh = 4000
+CHR_size_thresh = 8000
 
 EC_CIRCLING_SIZE = 20
 EC_CIRCLING_WIDTH = 10
@@ -37,7 +37,8 @@ search = 0
 def find_contour(gray):
 	## find contours in image
 	im2, contours, hierarchy = cv2.findContours(gray, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-	im2, border, hierarchy_out = cv2.findContours(gray, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE) # border contour
+	# border contour
+	im2, border, hierarchy_out = cv2.findContours(gray, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE) 
 
 	cell = np.empty_like(contours)
 	chr = np.empty_like(contours)
@@ -80,14 +81,25 @@ def find_contour(gray):
 			border_cell[idx_b] = hull
 			idx_b+=1
 	label_im = np.zeros_like(gray)
+	label_im2 = np.zeros_like(gray)
 
-	label_im = search_region(label_im, chr)
+
+	label_im_search = search_region(label_im, chr)
+	label_im_search = cv2.cvtColor(label_im_search,cv2.COLOR_BGR2GRAY)
+	im2, search_cnt, hierarchy = cv2.findContours(label_im_search, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+	# draw contours, add border for dilation
+	cv2.drawContours(label_im, search_cnt, -1, SEARCH,thickness = -1)
 
 	cv2.drawContours(label_im, chr, -1, CHR,thickness = -1)
+	cv2.drawContours(label_im, chr, -1, CHR,thickness = 5)
+
+
 	cv2.drawContours(label_im, cell, -1, CELL,thickness = -1)
+	cv2.drawContours(label_im, cell, -1, CELL,thickness = 15)
+
 	cv2.drawContours(label_im, border_cell, -1, CELL, thickness = -1)
-	kernel = np.ones((5,5),np.uint8)
-	label_im = cv2.erode(label_im,kernel,iterations = 1)
+	cv2.drawContours(label_im, border_cell, -1, CELL, thickness = 15)
 
 	return label_im
 
@@ -132,14 +144,16 @@ def search_region(label_im, chr):
 	# find the largest cluster
 	condition = np.argwhere(C == stats.mode(C)[0][0]).flatten().tolist()
 
+	label_im2 = label_im.copy()
+
 	# extract positions and draw contour
 	extracted_cluster = [cv2.convexHull(np.array([list(chr_center[i]) for i in condition]))]
-	cv2.drawContours(label_im, extracted_cluster, -1, SEARCH, thickness=-1)
+	cv2.drawContours(label_im2, extracted_cluster, -1, SEARCH, thickness=-1)
 
 	kernel = np.ones((100,100),np.uint8)
-	label_im = cv2.dilate(label_im,kernel,iterations = 1)
+	label_im2 = cv2.dilate(label_im2,kernel,iterations = 1)
 
-	return label_im
+	return label_im2
 
 def detect_EC(image, thresh, label_im, ori_image):
 	im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)

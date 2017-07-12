@@ -75,13 +75,15 @@ def convert_im(image, threshold = 100):
     thresh_img = np.array(thresh_img)
 
     # label image for cell and chr and search region
-    curr_label= cnt.find_contour(thresh_img)
+    curr_label = cnt.find_contour(thresh_img)
+    label = Image.fromarray(curr_label)
 
     # shrink images
     orig_image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     orig_image = Image.fromarray(orig_image)
     orig_image.thumbnail((window_size,window_size))
-    label = Image.fromarray(curr_label)
+
+
     # label.thumbnail((window_size,window_size))
     # curr_label = np.array(label)
     # origin = np.copy(curr_label)
