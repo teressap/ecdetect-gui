@@ -13,10 +13,11 @@ from bradley import bradley
 #      GLOBAL VARIABLES     #
 #---------------------------#
 path = 'M14_004.tif'
+# path='PC3_Ctrl_003.tif'
 
 # gui display window
 ypad = 50
-window_size = 960
+window_size = 1200
 
 # layers of display
 curr_label = 0
@@ -69,6 +70,7 @@ def change(arg):
     elif arg == "resetall":
 
         # get original label
+        curr_label.resetAll()
         label = curr_label.label_im
 
         # delete circles on panelB
@@ -109,14 +111,16 @@ def read_im(image, ww, wh, factor = 1):
 
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
+
     # reverse image if necessary
     bw_ratio = np.count_nonzero(image[image < np.mean(image)])/(image.shape[0]*image.shape[1])
     if bw_ratio > 0.5:
         image = (255 - image)
+    # clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(20,20))
+    # image = clahe.apply(image)
 
     # set threshold and create binary image
     blended = convert_im(image)
-
 
     # thumbnail
     image_resize = Image.fromarray(np.array(orig_image).copy())
@@ -165,11 +169,64 @@ def convert_im(image, threshold = 100):
     return blended
 
 
-def detect_EC(a):
-    pass
+def detect_ECs():
+    global imgB_handler, img, blended, imgA_handler, orig_image 
 
-def clear_EC(a):
-    pass
+    # detect ECs
+    new_thresh = cv2.cvtColor(np.array(orig_image), cv2.COLOR_BGR2GRAY)
+    new_thresh = bradley(new_thresh)
+    circles = curr_label.detect_EC(new_thresh)
+    print(circles)
+
+    # re-create image for panel A
+    label = Image.fromarray(curr_label.new_label)
+    blended = Image.blend(orig_image, label, 0.3)
+    blended = np.array(blended)
+
+    # re-create image for panel B
+    img = np.array(orig_image)
+
+    # draw circles
+    num = 0
+    for center in circles:
+        cv2.circle(blended, center, 8, [255,0,0], thickness=2)
+        cv2.circle(img, center, 8, [255,0,0], thickness=2)
+        num += 1
+
+    # reset panelA
+    blended = Image.fromarray(blended)
+    blended = ImageTk.PhotoImage(blended)
+    panelA.delete("all")
+    imgA_handler = panelA.create_image((0,0), image = blended, anchor = "nw")
+    sh.reset()
+    panelA.bind("<Button-1>", sh.draw)
+
+    # reset panelB
+    img = Image.fromarray(img)
+    img = ImageTk.PhotoImage(img)
+    panelB.delete("all")
+    imgB_handler = panelB.create_image((0,0), image = img, anchor = "nw")
+
+    print("number of ECs: " + str(num))
+
+
+def clear_ECs():
+    global blended, orig_image,imgB_handler, img
+    # re-create panelA image
+    label = Image.fromarray(curr_label.label_im)
+    blended = Image.blend(orig_image, label, 0.3)
+    blended = ImageTk.PhotoImage(blended)
+
+    # reset panelA
+    panelA.delete("all")
+    imgA_handler = panelA.create_image((0,0), image = blended, anchor = "nw")
+    sh.reset()
+    panelA.bind("<Button-1>", sh.draw)
+
+    # reset panelB
+    img = ImageTk.PhotoImage(orig_image)
+    panelB.delete("all")
+    imgB_handler = panelB.create_image((0,0), image = img, anchor = "nw")
 
 #--------------------------#
 #      GUI FUNCTIONS       #
@@ -219,8 +276,8 @@ image = cv2.imread(path)
 
 img, img_small, mixed = read_im(image, 240, 300)
 
-w = 1200
-h = 650
+w = 1440
+h = 800
 rw = img_small.width()
 rh = img_small.height()
 
@@ -293,10 +350,10 @@ reset_poly_button.grid(row = 5, column=4, padx=20, pady=10)
 reset_all_button = Button(frameB, text = "Reset All", command = reset_all)
 reset_all_button.grid(row = 5, column=5, padx=20, pady=10)
 
-detect_button = Button(frameB, text = "Detect ECs", command = detect_EC)
+detect_button = Button(frameB, text = "Detect ECs", command = detect_ECs)
 detect_button.grid(row = 5, column=6, padx=20, pady=10)
 
-clear_button = Button(frameB, text = "Clear ECs", command = clear_EC)
+clear_button = Button(frameB, text = "Clear ECs", command = clear_ECs)
 clear_button.grid(row = 5, column=7, padx=20, pady=10)
 
 discard_button = Button(frameB, text = "Discard", command = change)

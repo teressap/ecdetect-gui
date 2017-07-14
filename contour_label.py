@@ -19,7 +19,7 @@ solidity_cutoff = 0.8
 MAX_SIZE = 400000
 
 EC_size_thresh_RELAX = 75
-EC_min_size = 3
+EC_min_size = 0
 
 MED_COMP_SIZE = 100
 CHR_NEAR_DILATION = 15
@@ -43,6 +43,10 @@ class ContourLabel:
 	nucleus = 0
 	border_nucleus = 0
 	search = 0
+	small = 0
+
+	# source image
+	gray = 0
 
  
 	# -------------------------------------------------------
@@ -50,6 +54,8 @@ class ContourLabel:
 	# -------------------------------------------------------
 	def __init__(self, gray):
 		self.find_contour(gray)
+		self.dilate()
+		self.gray = gray
 		self.new_label = self.label_im.copy()
 
 
@@ -57,8 +63,9 @@ class ContourLabel:
 	# Reset All 
 	# -------------------------------------------------------
 	def resetAll(self):
+		self.find_contour(self.gray)
+		self.dilate()
 		self.new_label = self.label_im.copy()
-
 
 	# -------------------------------------------------------
 	# recompute search region and put all contours together 
@@ -76,12 +83,10 @@ class ContourLabel:
 		cv2.drawContours(label, self.border_nucleus, -1, NUCLEUS, thickness = -1)
 
 
-
 	# -------------------------------------------------------
 	# recompute chromosomal and nucleus contours
 	# -------------------------------------------------------
 	def recompute(self):
-
 		# recompute chr region from new label image
 		chr_only = np.zeros_like(self.label_im)
 		chr_only [self.new_label == CHR] = self.new_label [self.new_label == CHR]
@@ -97,10 +102,13 @@ class ContourLabel:
 		self.new_label = np.empty_like(self.new_label)
 		self.repaint(self.new_label)
 
-		# cv2.imshow("image", chr_only)
-		# cv2.waitKey(0)
-		# cv2.destroyAllWindows()
-		pass
+	# -------------------------------------------------------
+	# Dilate original label image
+	# -------------------------------------------------------
+	def dilate(self):
+		cv2.drawContours(self.label_im, self.chr, -1, CHR,thickness = 5)
+		cv2.drawContours(self.label_im, self.nucleus, -1, NUCLEUS,thickness = 15)
+		cv2.drawContours(self.label_im, self.border_nucleus, -1, NUCLEUS, thickness = 15)
 
 	# -------------------------------------------------------
 	# find contours in given binary image
@@ -113,6 +121,7 @@ class ContourLabel:
 
 		self.nucleus = np.empty_like(contours)
 		self.chr = np.empty_like(contours)
+		self.small = np.empty_like(contours)
 
 		gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
@@ -135,6 +144,9 @@ class ContourLabel:
 			elif MED_COMP_SIZE < area < CHR_size_thresh:
 				self.chr[idx_ch] = cnt
 				idx_ch += 1
+			elif EC_min_size < area < 100:
+				self.small[idx_ch] = cnt
+				idx_ch += 1
 
 		# find border components and add them to nucleuss
 		self.border_nucleus = np.empty_like(border)
@@ -150,13 +162,10 @@ class ContourLabel:
 
 		self.repaint(self.label_im)
 
-		cv2.drawContours(self.label_im, self.chr, -1, CHR,thickness = 5)
-		cv2.drawContours(self.label_im, self.nucleus, -1, NUCLEUS,thickness = 15)
-		cv2.drawContours(self.label_im, self.border_nucleus, -1, NUCLEUS, thickness = 15)
 
-		return self.label_im
-
+	# -------------------------------------------------------
 	# create a convex hull around close connected chromosomes
+	# -------------------------------------------------------
 	def search_region(self):
 
 		D_near = 150
@@ -208,10 +217,12 @@ class ContourLabel:
 
 		return search_label
 
-	def detect_EC(image, thresh, label_im, ori_image):
+	def detect_EC(self, thresh):
+
 		im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-		show = []
-		ori_image = cv2.cvtColor(ori_image, cv2.COLOR_GRAY2RGB)
+
+		circles = []
+		# ori_image = cv2.cvtColor(ori_image, cv2.COLOR_GRAY2RGB)
 		for cnt in contours:
 			area = cv2.contourArea(cnt)
 			hull = cv2.convexHull(cnt)
@@ -221,14 +232,26 @@ class ContourLabel:
 				continue
 			cx = int(M['m10']/M['m00'])
 			cy = int(M['m01']/M['m00'])
-			if ((label_im[cy][cx] == np.array(SEARCH)).all()) and EC_min_size < area < 100:
-				show.append((cx,cy))
+			if ((self.new_label[cy][cx] == np.array(SEARCH)).all()) and EC_min_size < area < 100:
+				circles.append((cx,cy))
 
-		for center in show:
-			cv2.circle(image, center, 8, [255,0,0], thickness=2)
-			cv2.circle(ori_image, center, 8, [255,0,0], thickness=2)
+		# circles = []
 
-		return image, len(show), ori_image
+		# for cnt in self.small:
+
+		# 	M = cv2.moments(cnt)
+		# 	if M['m00'] == 0:
+		# 		continue
+		# 	cx = int(M['m10']/M['m00'])
+		# 	cy = int(M['m01']/M['m00'])
+		# 	if ((self.new_label[cy][cx] == np.array(SEARCH)).all()):
+		# 		circles.append((cx,cy))
+
+		# for center in circles:
+		# 	cv2.circle(image, center, 8, [255,0,0], thickness=2)
+		# 	cv2.circle(ori_image, center, 8, [255,0,0], thickness=2)
+
+		return circles
 
 	####
 	# Takes a label_im 2-d array and modify points specified through parameter
@@ -242,13 +265,11 @@ class ContourLabel:
 		points = [[points[i], points[i+1]] for i in range(0,len(points),2)]
 		points = np.array(points, np.int32)
 
-		print(self.new_label)
-
 		cv2.fillPoly(self.new_label, [points], tuple(arg))
 
 		self.recompute()
 
-		cv2.fillPoly(self.new_label, [points], tuple(arg))
+		# cv2.fillPoly(self.new_label, [points], tuple(arg))
 
 		return self.new_label
 
