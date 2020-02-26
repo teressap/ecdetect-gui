@@ -115,9 +115,9 @@ class ContourLabel:
 	# -------------------------------------------------------
 	def find_contour(self,gray):
 		## find contours in image
-		im2, contours, hierarchy = cv2.findContours(gray, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+		im2, contours, hierarchy = cv2.findContours(gray, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 		# border contour
-		im2, border, hierarchy_out = cv2.findContours(gray, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE) 
+		im2, border, hierarchy_out = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE) 
 
 		self.nucleus = np.empty_like(contours)
 		self.chr = np.empty_like(contours)
